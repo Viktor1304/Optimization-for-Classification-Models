@@ -1,0 +1,10 @@
+project-includes = [
+	"**/*.py*"
+]
+
+search-path = ["./"]
+disable-search-path-heuristics = true
+
+python-platform = "linux"
+
+ignore-missing-source = false
