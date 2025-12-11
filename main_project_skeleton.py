@@ -1,11 +1,9 @@
-###############################################
-# Author & Copyright: Konstantinos Kamnitsas
-# B1 - Project - 2025
-###############################################
-
+from matplotlib.lines import Line2D
 from create_data import create_data
 import numpy as np
-import matplotlib.pyplot as plt  # For plotting
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from matplotlib import rcParams
 
 
 def sigmoid(X, theta):
@@ -29,19 +27,24 @@ def log_grad(X_train, y_train, theta):
     return gradient
 
 
-def grad_descent(X_train, y_train, learning_rate, grad, iters_total):
+def grad_descent(X_train, y_train, learning_rate: float, grad, iters_total: int):
     theta = np.zeros((X_train.shape[1], 1))
 
     N = X_train.shape[0]
 
-    for _ in range(iters_total):
+    loss_arr = []
+    iter_arr = []
+
+    for iter in range(iters_total):
+        loss_arr.append(mean_logloss(X_train, y_train, theta))
+        iter_arr.append(iter)
         theta -= learning_rate * grad(X_train, y_train, theta) / N
 
-    return theta
+    return theta, loss_arr, iter_arr
 
 
 def mean_logloss(X, y_real, theta):
-    y_pred = sigmoid(X, theta).reshape(-1)  # (N,)
+    y_pred = sigmoid(X, theta).reshape(-1)
     y_real = y_real.reshape(-1)
 
     eps = 1e-12
@@ -63,10 +66,10 @@ def classif_error(y_real, y_pred):
     y_hat = np.round(y_real).astype(int)
     y_pred = np.array(y_pred).astype(int)
 
-    return 1.0 - np.mean(y_hat == y_pred)
+    return (1.0 - np.mean(y_hat == y_pred)) * 100.0
 
 
-def create_features_for_poly(X, degree):
+def create_features_for_poly(X, degree: int):
     x1 = X[:, 0]
     x2 = X[:, 1]
 
@@ -80,10 +83,7 @@ def create_features_for_poly(X, degree):
     return np.vstack(features).T
 
 
-# --------- Helper Plotting Function ----------------
-
-
-def plot_data(x, class_labels):
+def plot_data(x, class_labels) -> None:
     """
     Plots the data returned from the create_data() function.
     x: Matrix of dimensions number_of_samples x number_of_features.
@@ -91,7 +91,6 @@ def plot_data(x, class_labels):
     class_labels: Vector of dimensions number_of_samples.
                   Expects values class_labels={1,2} . Not the y={0,1}
     """
-    # Plot the points
     size_markers = 20
 
     fig, ax = plt.subplots()
@@ -118,71 +117,138 @@ def plot_data(x, class_labels):
     ax.set_ylabel("x2")
     ax.set_xlim([-2.0, 3.0])
     ax.set_ylim([-2.0, 3.0])
-    ax.legend("class 1", "class 2")
     ax.grid(True)
 
     plt.show()
 
 
-def plot_data_line(x, class_labels, theta, degree):
-    fig, ax = plt.subplots()
+def plot_data_line(x, class_labels, theta, degree: int, n_iters=0) -> None:
+    mpl.rcParams.update(
+        {
+            "font.size": 14,
+            "axes.labelsize": 16,
+            "axes.titlesize": 16,
+            "legend.fontsize": 13,
+            "xtick.labelsize": 13,
+            "ytick.labelsize": 13,
+            "figure.dpi": 150,
+            "axes.grid": True,
+            "grid.color": "0.85",
+            "grid.linestyle": "--",
+            "grid.linewidth": 0.8,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+        }
+    )
 
-    # --- Plot data points ---
+    fig, ax = plt.subplots(figsize=(7, 6))
+
     ax.scatter(
         x[class_labels == 1, 0],
         x[class_labels == 1, 1],
-        s=20,
-        c="red",
+        s=50,
+        c="#d62728",  # red
         edgecolors="black",
-        label="class 1",
+        linewidth=0.8,
+        label="Class 1",
     )
+
     ax.scatter(
         x[class_labels == 2, 0],
         x[class_labels == 2, 1],
-        s=20,
-        c="green",
+        s=50,
+        c="#2ca02c",  # green
         edgecolors="black",
-        label="class 2",
+        linewidth=0.8,
+        label="Class 2",
     )
 
-    x1_vals = np.linspace(-2, 3, 300)
-    x2_vals = np.linspace(-2, 3, 300)
+    x1_vals = np.linspace(-2, 3, 400)
+    x2_vals = np.linspace(-2, 3, 400)
     X1, X2 = np.meshgrid(x1_vals, x2_vals)
 
     grid = np.column_stack([X1.ravel(), X2.ravel()])
-
     Phi = create_features_for_poly(grid, degree)
+    Z = (Phi @ theta).reshape(X1.shape)
 
-    Z = Phi @ theta
+    ax.contour(
+        X1,
+        X2,
+        Z,
+        levels=[0],
+        colors="#00008B",
+        linewidths=2.2,
+    )
 
-    Z = Z.reshape(X1.shape)
+    boundary_proxy = Line2D(
+        [], [], color="#00008B", linewidth=2.2, label="Decision boundary"
+    )
 
-    ax.contour(X1, X2, Z, levels=[0], linewidths=2, colors="blue")
+    ax.set_xlabel(r"$x_1$")
+    ax.set_ylabel(r"$x_2$")
+    ax.set_xlim((-2.0, 3.0))
+    ax.set_ylim((-2.0, 3.0))
 
-    ax.set_xlabel("x1")
-    ax.set_ylabel("x2")
-    ax.set_xlim([-2.0, 3.0])
-    ax.set_ylim([-2.0, 3.0])
-    ax.legend()
-    ax.grid(True)
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(boundary_proxy)
+    labels.append("Decision boundary")
+    ax.legend(handles, labels, frameon=True, framealpha=0.95, edgecolor="0.7")
+
+    plt.tight_layout()
+    plt.title(f"GD Iterations = {n_iters}")
     plt.show()
+    # plt.savefig(f"{n_iters}_poly3.pdf")
+
+
+rcParams.update(
+    {
+        "font.size": 14,
+        "axes.labelsize": 16,
+        "axes.titlesize": 16,
+        "legend.fontsize": 14,
+        "xtick.labelsize": 13,
+        "ytick.labelsize": 13,
+        "figure.figsize": (6, 4),
+        "axes.grid": True,
+        "grid.alpha": 0.3,
+    }
+)
+
+
+def plot_loss_curve(
+    loss_history, loss_iterations, filename: str = "loss_curve.pdf"
+) -> None:
+    """
+    loss_history : list or array of loss values at each GD iteration
+    """
+
+    plt.figure()
+    plt.plot(loss_iterations, loss_history, linewidth=2)
+    plt.xlabel("Iteration")
+    plt.ylabel("Mean Log-Loss")
+    plt.title("Gradient Descent Convergence")
+    plt.tight_layout()
+
+    plt.savefig(filename, format="pdf", bbox_inches="tight")
+    plt.close()
 
 
 if __name__ == "__main__":
     # Hyper-parameters:
-    learning_rates = [0.01, 0.1, 0.5, 1.0]
-    nmb_iters: list[int] = [100, 500, 1000, 10000]
+    lr = 0.5
+    gd_iters: int = 1000
     degree_poly = 3
+    global_iterations = 1
+    n_samples_train = 400
 
-    param_count: dict[tuple[float, int], int] = {}
-
-    for _ in range(20):
+    val_error_arr = []
+    train_error_arr = []
+    sigma_val = 0.0
+    sigma_train = 0.0
+    for iteration in range(global_iterations):
         # Create training data
-        n_samples_train = 400
         [X_train, class_labels_train] = create_data(n_samples_train)
-        X_train_hat = np.concatenate(
-            (X_train, np.ones(shape=(n_samples_train, 1))), axis=1
-        )
+
         # Change class labels ={1,2} to values for y={0,1} respectively.
         y_train = (class_labels_train == 1) * 0 + (class_labels_train == 2) * 1
         X_train_poly = create_features_for_poly(X_train, degree_poly)
@@ -195,37 +261,52 @@ if __name__ == "__main__":
         y_val = (class_labels_val == 1) * 0 + (class_labels_val == 2) * 1
         X_val_poly = create_features_for_poly(X_val, degree_poly)
 
-        optimal_theta = []
-        min_error = 10.0
-        optimal_hyper = (1, 1)
         # Optimize - Logistic Regression - Gradient Descent
-        for lr in learning_rates:
-            for gd_iters in nmb_iters:
-                theta_opt = grad_descent(X_train_poly, y_train, lr, log_grad, gd_iters)
+        theta_opt, loss_history, iterations = grad_descent(
+            X_train_poly, y_train, lr, log_grad, gd_iters
+        )
 
-                # Evaluate performance:
-                mean_log = mean_logloss(X_val_poly, y_val, theta_opt)
-                # print(f"Mean Log-Loss: {mean_log}")
-                # print(
-                #     f"Percentage error: {100 * classif_error(log_regr(X_val_poly, theta_opt), y_val):.2f}%"
-                # )
+        # Evaluate performance:
+        mean_log = mean_logloss(X_val_poly, y_val, theta_opt)
+        train_error = classif_error(log_regr(X_train_poly, theta_opt), y_train)
+        train_error_arr.append(train_error)
+        val_error = classif_error(log_regr(X_val_poly, theta_opt), y_val)
+        val_error_arr.append(val_error)
+        # val_error += mean_log
 
-                if mean_log < min_error:
-                    min_error = mean_log
-                    optimal_theta = theta_opt
-                    optimal_hyper = (lr, gd_iters)
-        if optimal_hyper not in param_count:
-            param_count[optimal_hyper] = 0
-        param_count[optimal_hyper] += 1
+        # Plot data:
+        # print("-------------------------------------------")
+        # print(f"Optimal theta is: \n{theta_opt}")
+        # print(
+        #     f"With loss {mean_logloss(X_val_poly, y_val, theta_opt)} and error {100 * classif_error(log_regr(X_val_poly, theta_opt), y_val):.2f}%"
+        # )
+        # print(
+        #     f"Optimal hyperparameters are: Learning rate = {lr}, Iterations = {gd_iters}"
+        # )
+        plot_data_line(
+            X_train, class_labels_train, theta_opt, degree_poly, n_iters=gd_iters
+        )
+        # if iteration == global_iterations - 1:
+        #     plot_data_line(
+        #         X_val,
+        #         class_labels_val,
+        #         theta_opt,
+        #         degree_poly,
+        #         n_iters=n_samples_train,
+        #     )
+        # plot_loss_curve(loss_history, iterations)
 
-    # Plot data:
-    (lr, iters) = max(param_count, key=param_count.get)
-    print(param_count)
-    print("-------------------------------------------")
-    print(f"Optimal theta is: \n{optimal_theta}")
-    print(
-        f"With loss {mean_logloss(X_val_poly, y_val, optimal_theta)} and error {100 * classif_error(log_regr(X_val_poly, optimal_theta), y_val):.2f}%"
-    )
-    print(f"Optimal hyperparameters are: Learning rate = {lr}, Iterations = {iters}")
-    plot_data_line(X_train, class_labels_train, optimal_theta, degree_poly)
-    plot_data_line(X_val, class_labels_val, optimal_theta, degree_poly)
+    train_error = sum(train_error_arr) / global_iterations
+    val_error = sum(val_error_arr) / global_iterations
+
+    sigma_train = sum([(x - train_error) ** 2 for x in train_error_arr])
+    sigma_train = (sigma_train / global_iterations) ** 0.5
+
+    sigma_val = sum([(x - val_error) ** 2 for x in val_error_arr])
+    sigma_val = (sigma_val**0.5) / global_iterations
+
+    print(f"Training steps: {n_samples_train}")
+    print(f"Average prediction error training: {train_error:.2f}%")
+    print(f"Standard deviation validation: {sigma_val:.2f}")
+    print(f"Average prediction error validation: {val_error:.2f}%")
+    print(f"Standard deviation train: {sigma_train:.2f}")
